@@ -21,11 +21,11 @@
         {% if request.user.is_authenticated %}
 
         <div class="header__user">
-          <a href="profile.html">
+          <a href="{% url 'user_profile' user.id %}">
             <div class="avatar avatar--medium active">
               <img src="https://randomuser.me/api/portraits/men/37.jpg" />
             </div>
-            <p>{{request.user.username}} <span>@{{request.user.username}}</span></p>
+            <p>{{request.user.first_name}} <span>@{{request.user.username}}</span></p>
           </a>
           <button class="dropdown-button">
             <svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
@@ -36,16 +36,20 @@
         </div>
         {% else %}
         
-        <a href="{% url 'login' %}">Login
+        <span>        <a href="{% url 'login' %}">Login
           <img src=" {% static 'images/avatar.svg' %} " />
         </a> 
+
+
+        <a  href=" {% url 'register' %} "> Register </a> </span>
+ 
 
          
 
         {% endif %}
 
         <div class="dropdown-menu">
-          <a href="settings.html" class="dropdown-link"
+          <a href="{% url 'user_edit' %}" class="dropdown-link"
             ><svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
               <title>tools</title>
               <path

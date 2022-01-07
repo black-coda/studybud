@@ -2,12 +2,14 @@ from django.contrib.auth.models import User
 from django.http.response import HttpResponse
 from django.shortcuts import render, redirect
 from .models import Room, Topic, Comment
-from .forms import RoomModelForm
+from .forms import RoomModelForm, UserModelForm, RegisterForm
 from django.db.models import Q
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.forms import PasswordChangeForm
+from django.contrib.auth import update_session_auth_hash
 
 def loginView(request):
     page = 'login'
@@ -36,9 +38,9 @@ def logoutView(request):
     return redirect('home')
 
 def registerView(request):
-    form = UserCreationForm()
+    form = RegisterForm()
     if request.method == 'POST':
-        form = UserCreationForm(request.POST)
+        form = RegisterForm(request.POST)
         if form.is_valid():
             user = form.save(commit=False)
             user.username = user.username.lower() #change username to lowercase
@@ -48,7 +50,7 @@ def registerView(request):
         else:
             messages.error(request, "An error occured during registration")
     context = {'form':form}
-    return render(request, 'base/login_register.html',context )
+    return render(request, 'base/signup.html',context )
 
 def home(request):
     q = request.GET.get('q') if request.GET.get('q') != None else ''
@@ -67,7 +69,7 @@ def home(request):
 def room(request, pk):
     #returns object according to pk
     rooms = Room.objects.get(id=pk)
-    comments = rooms.comment_set.all().order_by('-created') #query all comment relating to the particular room
+    comments = rooms.comment_set.all().order_by('created') #query all comment relating to the particular room
     participants = rooms.participants.all()     #query all participants in the group
     #creats an instances of the model Comment // adds to chat
     if request.method == 'POST':
@@ -86,15 +88,28 @@ def room(request, pk):
 def createRoom(request):
     #Create Room using model form 
     form = RoomModelForm()
+    topics = Topic.objects.all()
     if request.method == 'POST':
-        form = RoomModelForm(request.POST)
-        if form.is_valid():
-            #assign host to user line 93
-            room = form.save(commit=False)
-            room.host = request.user  
-            room.save()          
-            return redirect('home')
-    context = {'form':form}
+        topic_name = request.POST.get('topic')
+        topic, created = Topic.objects.get_or_create(name=topic_name)
+
+        #get or created method checks if the topic already exst or not, if it does
+        #it adds to the group
+
+        Room.objects.create(
+            host = request.user,    #request.user = host same as if form is valid commit false then assign jhost to the request.user
+            topic = topic,
+            name = request.POST.get('name'),
+            description = request.POST.get('description'),
+        )
+        # form = RoomModelForm(request.POST)
+        # if form.is_valid():
+        #     #assign host to user line 93
+        #     room = form.save(commit=False)
+        #     room.host = request.user  
+        #     room.save()          
+        return redirect('home')
+    context = {'form':form, 'topics':topics}
     return render(request, 'base/room_form.html', context)
 
 @login_required(login_url='login')
@@ -103,19 +118,25 @@ def updateRoom(request,pk):
     room = Room.objects.get(id=pk)
     # instance of that room
     form = RoomModelForm(instance=room)
-
+    topics = Topic.objects.all()
     #restrict update to owner of room only
     if request.user != room.host:
         return HttpResponse('You are not allowed here!!!')
 
     if request.method == 'POST':
+        topic_name = request.POST.get('topic')
+        topic, created = Topic.objects.get_or_create(name=topic_name)
         form = RoomModelForm(request.POST, instance=room)
-
-        if form.is_valid():
-            form.save()
-            return redirect('home')
-    context = {'form':form}
-    return render(request, 'base/room-update.html', context)
+        room.name = request.POST.get('name')
+        room.topic = topic
+        room.description = request.POST.get('description')
+        room.save()
+        return redirect('home')
+        # if form.is_valid():
+        #     form.save()
+        #     return redirect('home')
+    context = {'form':form, 'topics':topics,'room':room}
+    return render(request, 'base/room_form.html', context)
 
 @login_required(login_url='login')
 def deleteRoom(request,pk):
@@ -149,3 +170,29 @@ def userProfile(request,pk):
     topics = Topic.objects.all()
     context = {'user':user, 'rooms':rooms,'topics':topics,'room_messages':room_message}
     return render(request, 'base/profile.html', context)
+
+
+@login_required(login_url='login')
+def updateUser(request):
+    form = UserModelForm(instance=request.user)
+    if request.method == 'POST':
+        form = UserModelForm(request.POST, instance=request.user)
+        if form.is_valid():
+            form.save()
+            return redirect('user_profile', pk=request.user.id)
+    context = {'form':form}
+    return render(request, 'base/update_user.html',context)
+
+@login_required(login_url='login')
+def passwordChange(request):
+    form = PasswordChangeForm(user=request.user)
+    if request.method == "POST":
+        form = PasswordChangeForm(user=request.user, data=request.POST)
+        if form.is_valid():
+            form.save()
+            update_session_auth_hash(request, form.user)
+            return redirect('user_profile', pk=request.user.id)
+        else:
+            form = PasswordChangeForm()
+    context = {'form':form}
+    return render(request, 'base/room_form_old.html', context)
