@@ -2,7 +2,7 @@ from django.contrib.auth.models import User
 from django.http.response import HttpResponse
 from django.shortcuts import render, redirect
 from .models import Room, Topic, Comment
-from .forms import RoomModelForm, UserModelForm, RegisterForm
+from .forms import ProfileForm, RoomModelForm, UserModelForm, RegisterForm
 from django.db.models import Q
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
@@ -10,6 +10,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.forms import PasswordChangeForm
 from django.contrib.auth import update_session_auth_hash
+from django.core.paginator import Paginator
 
 def loginView(request):
     page = 'login'
@@ -63,9 +64,15 @@ def home(request):
     room_messages = Comment.objects.filter(
         Q(room__topic__name__icontains=q)
     )[:6]
-    context = {'rooms':rooms,'topics':topic,'room_count':room_count,'room_messages':room_messages,'topic_count':topic_count}
+
+    #paginator
+    # paginator = Paginator(rooms,5) #show 5 rooms per page
+    # page_number = request.GET.get('page')
+    # page_obj = paginator.get_page(page_number)
+    context = {'rooms':rooms,'topics':topic,'room_count':room_count,'room_messages':room_messages,'topic_count':topic_count,}
     return render(request, 'base/home.html', context)
 
+#@login_required(login_url='login')
 def room(request, pk):
     #returns object according to pk
     rooms = Room.objects.get(id=pk)
@@ -174,13 +181,22 @@ def userProfile(request,pk):
 
 @login_required(login_url='login')
 def updateUser(request):
+    profile_form = ProfileForm(instance=request.user)
     form = UserModelForm(instance=request.user)
     if request.method == 'POST':
         form = UserModelForm(request.POST, instance=request.user)
-        if form.is_valid():
+        profile_form = ProfileForm(request.POST, instance=request.user)
+        if form.is_valid() and profile_form.is_valid():
             form.save()
+            profile_form.save()
+            messages.success(request, 'Your profile was successfully updated!')
             return redirect('user_profile', pk=request.user.id)
-    context = {'form':form}
+        else:
+            messages.error(request, 'Please correct the error!')
+    else:
+        form = UserModelForm(instance=request.user)
+        profile_form = ProfileForm(instance=request.user)
+    context = {'form':form,'profile':profile_form}
     return render(request, 'base/update_user.html',context)
 
 @login_required(login_url='login')
